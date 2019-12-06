@@ -422,9 +422,10 @@ func (n *Node) runOnce() error {
 	}
 
 	// Send up to maxSendBatch messages.
-	if err := n.shareBatch(); err != nil {
-		return err
-	}
+	// Temporarily disabled for browser performance.
+	// if err := n.shareBatch(); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
