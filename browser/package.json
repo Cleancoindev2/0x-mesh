@@ -1,6 +1,6 @@
 {
     "name": "albrow-mesh-browser-hackathon",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "description": "TypeScript and JavaScript bindings for running Mesh directly in the browser.",
     "main": "./lib/index.js",
     "license": "Apache-2.0",
