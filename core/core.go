@@ -656,6 +656,18 @@ func (app *App) GetOrders(page, perPage int, snapshotID string) (*rpc.GetOrdersR
 	return getOrdersResponse, nil
 }
 
+func (app *App) GetOrdersByMakerAssetData(makerAssetData []byte) ([]*zeroex.SignedOrder, error) {
+	var dbOrders []*meshdb.Order
+	if err := app.db.Orders.NewQuery(app.db.Orders.MakerAssetDataIndex.All()).Run(&dbOrders); err != nil {
+		return nil, err
+	}
+	orders := make([]*zeroex.SignedOrder, len(dbOrders))
+	for i, dbOrder := range dbOrders {
+		orders[i] = dbOrder.SignedOrder
+	}
+	return orders, nil
+}
+
 // AddOrders can be used to add orders to Mesh. It validates the given orders
 // and if they are valid, will store and eventually broadcast the orders to
 // peers. If pinned is true, the orders will be marked as pinned, which means

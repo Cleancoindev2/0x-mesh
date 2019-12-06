@@ -155,6 +155,7 @@ interface MeshWrapper {
     onError(handler: (err: Error) => void): void;
     onOrderEvents(handler: (events: WrapperOrderEvent[]) => void): void;
     addOrdersAsync(orders: WrapperSignedOrder[], pinned: boolean): Promise<WrapperValidationResults>;
+    getOrdersByMakerAssetDataAsync(makerAssetDataHex: string): Promise<WrapperSignedOrder[]>;
 }
 
 // The type for configuration exposed by MeshWrapper.
@@ -647,6 +648,23 @@ export class Mesh {
         const meshOrders = orders.map(signedOrderToWrapperSignedOrder);
         const meshResults = await this._wrapper.addOrdersAsync(meshOrders, pinned);
         return wrapperValidationResultsToValidationResults(meshResults);
+    }
+    /**
+     * Returns all orders with the given maker asset data.
+     *
+     * @param   makerAssetDataHex     Hex-encoded maker asset data.
+     * @returns An array of orders that match the given maker asset data.
+     */
+    public async getOrdersByMakerAssetDataAsync(makerAssetDataHex: string): Promise<SignedOrder[]> {
+        await waitForLoadAsync();
+        if (this._wrapper === undefined) {
+            // If this is called after startAsync, this._wrapper is always
+            // defined. This check is here just in case and satisfies the
+            // compiler.
+            return Promise.reject(new Error('Mesh is still loading. Try again soon.'));
+        }
+        const wrapperOrders = await this._wrapper.getOrdersByMakerAssetDataAsync(makerAssetDataHex);
+        return wrapperOrders.map(wrapperSignedOrderToSignedOrder);
     }
 }
 

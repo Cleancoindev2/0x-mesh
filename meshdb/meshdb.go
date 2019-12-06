@@ -73,9 +73,10 @@ type OrdersCollection struct {
 	MakerAddressAndSaltIndex                     *db.Index
 	MakerAddressTokenAddressTokenIDIndex         *db.Index
 	MakerAddressMakerFeeAssetAddressTokenIDIndex *db.Index
+	MakerAssetDataIndex                          *db.Index
 	LastUpdatedIndex                             *db.Index
 	IsRemovedIndex                               *db.Index
-	ExpirationTimeIndex                  *db.Index
+	ExpirationTimeIndex                          *db.Index
 }
 
 // MetadataCollection represents a DB collection used to store instance metadata
@@ -183,6 +184,10 @@ func setupOrders(database *db.DB) (*OrdersCollection, error) {
 		return indexValues
 	})
 
+	makerAssetDataIndex := col.AddIndex("makerAssetDataIndex", func(m db.Model) []byte {
+		return m.(*Order).SignedOrder.MakerAssetData
+	})
+
 	isRemovedIndex := col.AddIndex("isRemoved", func(m db.Model) []byte {
 		order := m.(*Order)
 		// false = 0; true = 1
@@ -209,9 +214,10 @@ func setupOrders(database *db.DB) (*OrdersCollection, error) {
 		MakerAddressTokenAddressTokenIDIndex:         makerAddressTokenAddressTokenIDIndex,
 		MakerAddressMakerFeeAssetAddressTokenIDIndex: makerAddressMakerFeeAssetAddressTokenIDIndex,
 		MakerAddressAndSaltIndex:                     makerAddressAndSaltIndex,
+		MakerAssetDataIndex:                          makerAssetDataIndex,
 		LastUpdatedIndex:                             lastUpdatedIndex,
 		IsRemovedIndex:                               isRemovedIndex,
-		ExpirationTimeIndex:                  expirationTimeIndex,
+		ExpirationTimeIndex:                          expirationTimeIndex,
 	}, nil
 }
 

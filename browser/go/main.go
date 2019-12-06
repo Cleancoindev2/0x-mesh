@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"syscall/js"
@@ -152,24 +153,24 @@ func NewMeshWrapper(config core.Config) (*MeshWrapper, error) {
 
 // Start starts core.App and sets up some channels. Unlike core.App.Start, it
 // *does not* block. Instead, any erorrs that occur while Mesh is running
-// will be sent through cw.errHandler.
-func (cw *MeshWrapper) Start() error {
-	cw.orderEvents = make(chan []*zeroex.OrderEvent, orderEventsBufferSize)
-	cw.orderEventsSubscription = cw.app.SubscribeToOrderEvents(cw.orderEvents)
-	cw.errChan = make(chan error, 1)
+// will be sent through mw.errHandler.
+func (mw *MeshWrapper) Start() error {
+	mw.orderEvents = make(chan []*zeroex.OrderEvent, orderEventsBufferSize)
+	mw.orderEventsSubscription = mw.app.SubscribeToOrderEvents(mw.orderEvents)
+	mw.errChan = make(chan error, 1)
 
-	// cw.app.Start blocks until there is an error or the app is closed, so we
+	// mw.app.Start blocks until there is an error or the app is closed, so we
 	// need to start it in a goroutine.
 	go func() {
-		cw.errChan <- cw.app.Start(cw.ctx)
+		mw.errChan <- mw.app.Start(mw.ctx)
 	}()
 
-	// Wait up to 1 second to see if cw.app.Start returns an error right away.
+	// Wait up to 1 second to see if mw.app.Start returns an error right away.
 	// If it does, it probably indicates a configuration error which we should
 	// return immediately.
 	startTimeout := 1 * time.Second
 	select {
-	case err := <-cw.errChan:
+	case err := <-mw.errChan:
 		return err
 	case <-time.After(startTimeout):
 		break
@@ -179,20 +180,20 @@ func (cw *MeshWrapper) Start() error {
 	go func() {
 		for {
 			select {
-			case err := <-cw.errChan:
+			case err := <-mw.errChan:
 				// core.App exited with an error. Call errHandler.
-				if !isNullOrUndefined(cw.errHandler) {
-					cw.errHandler.Invoke(errorToJS(err))
+				if !isNullOrUndefined(mw.errHandler) {
+					mw.errHandler.Invoke(errorToJS(err))
 				}
-			case <-cw.ctx.Done():
+			case <-mw.ctx.Done():
 				return
-			case events := <-cw.orderEvents:
-				if !isNullOrUndefined(cw.orderEventsHandler) {
+			case events := <-mw.orderEvents:
+				if !isNullOrUndefined(mw.orderEventsHandler) {
 					eventsJS := make([]interface{}, len(events))
 					for i, event := range events {
 						eventsJS[i] = event.JSValue()
 					}
-					cw.orderEventsHandler.Invoke(eventsJS)
+					mw.orderEventsHandler.Invoke(eventsJS)
 				}
 			}
 		}
@@ -204,7 +205,7 @@ func (cw *MeshWrapper) Start() error {
 // AddOrders converts raw JavaScript orders into the appropriate type, calls
 // core.App.AddOrders, converts the result into basic JavaScript types (string,
 // int, etc.) and returns it.
-func (cw *MeshWrapper) AddOrders(rawOrders js.Value, pinned bool) (js.Value, error) {
+func (mw *MeshWrapper) AddOrders(rawOrders js.Value, pinned bool) (js.Value, error) {
 	// HACK(albrow): There is a more effecient way to do this, but for now,
 	// just use JSON to convert to the Go type.
 	encodedOrders := js.Global().Get("JSON").Call("stringify", rawOrders).String()
@@ -212,7 +213,7 @@ func (cw *MeshWrapper) AddOrders(rawOrders js.Value, pinned bool) (js.Value, err
 	if err := json.Unmarshal([]byte(encodedOrders), &rawMessages); err != nil {
 		return js.Undefined(), err
 	}
-	results, err := cw.app.AddOrders(rawMessages, pinned)
+	results, err := mw.app.AddOrders(rawMessages, pinned)
 	if err != nil {
 		return js.Undefined(), err
 	}
@@ -221,33 +222,55 @@ func (cw *MeshWrapper) AddOrders(rawOrders js.Value, pinned bool) (js.Value, err
 	return resultsJS, nil
 }
 
+func (mw *MeshWrapper) GetOrdersByMakerAssetData(makerAssetDataHex string) ([]interface{}, error) {
+	makerAssetData, err := hex.DecodeString(makerAssetDataHex)
+	if err != nil {
+		return nil, err
+	}
+	orders, err := mw.app.GetOrdersByMakerAssetData(makerAssetData)
+	if err != nil {
+		return nil, err
+	}
+	jsOrders := make([]interface{}, len(orders))
+	for i, order := range orders {
+		jsOrders[i] = order.JSValue()
+	}
+	return jsOrders, nil
+}
+
 // JSValue satisfies the js.Wrapper interface. The return value is a JavaScript
 // object consisting of named functions. They act like methods by capturing the
 // MeshWrapper through a closure.
-func (cw *MeshWrapper) JSValue() js.Value {
+func (mw *MeshWrapper) JSValue() js.Value {
 	return js.ValueOf(map[string]interface{}{
 		// startAsync(): Promise<void>;
 		"startAsync": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			return wrapInPromise(func() (interface{}, error) {
-				return nil, cw.Start()
+				return nil, mw.Start()
 			})
 		}),
 		// onError(handler: (error: Error) => void): void;
 		"onError": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			handler := args[0]
-			cw.errHandler = handler
+			mw.errHandler = handler
 			return nil
 		}),
 		// onOrderEvents(handler: (events: Array<OrderEvent>) => void): void;
 		"onOrderEvents": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			handler := args[0]
-			cw.orderEventsHandler = handler
+			mw.orderEventsHandler = handler
 			return nil
 		}),
 		// addOrdersAsync(orders: Array<SignedOrder>): Promise<ValidationResults>
 		"addOrdersAsync": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 			return wrapInPromise(func() (interface{}, error) {
-				return cw.AddOrders(args[0], args[1].Bool())
+				return mw.AddOrders(args[0], args[1].Bool())
+			})
+		}),
+		// getOrdersByMakerAssetDataAsync(makerAssetDataHex: string): Promise<SignedOrder[]>;
+		"getOrdersByMakerAssetDataAsync": js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			return wrapInPromise(func() (interface{}, error) {
+				return mw.GetOrdersByMakerAssetData(args[0].String())
 			})
 		}),
 	})
