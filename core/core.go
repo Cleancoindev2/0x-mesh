@@ -656,9 +656,9 @@ func (app *App) GetOrders(page, perPage int, snapshotID string) (*rpc.GetOrdersR
 	return getOrdersResponse, nil
 }
 
-func (app *App) GetOrdersByMakerAssetData(makerAssetData []byte) ([]*zeroex.SignedOrder, error) {
+func (app *App) GetOrdersByMakerAssetData(makerAssetDataPrefix []byte) ([]*zeroex.SignedOrder, error) {
 	var dbOrders []*meshdb.Order
-	if err := app.db.Orders.NewQuery(app.db.Orders.MakerAssetDataIndex.All()).Run(&dbOrders); err != nil {
+	if err := app.db.Orders.NewQuery(app.db.Orders.MakerAssetDataIndex.PrefixFilter(makerAssetDataPrefix)).Run(&dbOrders); err != nil {
 		return nil, err
 	}
 	orders := make([]*zeroex.SignedOrder, len(dbOrders))

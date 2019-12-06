@@ -4,11 +4,12 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"syscall/js"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/0xProject/0x-mesh/core"
 	"github.com/0xProject/0x-mesh/zeroex"
@@ -223,10 +224,7 @@ func (mw *MeshWrapper) AddOrders(rawOrders js.Value, pinned bool) (js.Value, err
 }
 
 func (mw *MeshWrapper) GetOrdersByMakerAssetData(makerAssetDataHex string) ([]interface{}, error) {
-	makerAssetData, err := hex.DecodeString(makerAssetDataHex)
-	if err != nil {
-		return nil, err
-	}
+	makerAssetData := common.FromHex(makerAssetDataHex)
 	orders, err := mw.app.GetOrdersByMakerAssetData(makerAssetData)
 	if err != nil {
 		return nil, err
