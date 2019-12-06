@@ -422,10 +422,14 @@ func (n *Node) runOnce() error {
 	}
 
 	// Send up to maxSendBatch messages.
-	// Temporarily disabled for browser performance.
-	// if err := n.shareBatch(); err != nil {
-	// 	return err
-	// }
+	if err := n.shareBatch(); err != nil {
+		return err
+	}
+
+	// TODO(albrow): Remove this hack.
+	// HACK(albrow): Temporarily sleep in order to reduce CPU usage.
+	time.Sleep(3 * time.Second)
+
 	return nil
 }
 
