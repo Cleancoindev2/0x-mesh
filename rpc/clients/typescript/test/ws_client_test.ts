@@ -195,7 +195,7 @@ blockchainTests.resets('WSClient', env => {
             });
         });
 
-        describe.only('#getOrdersForPageAsync', async () => {
+        describe('#getOrdersForPageAsync', async () => {
             it('properly makes paginated request and returns signedOrders', async () => {
                 const ordersLength = 10;
                 const orders = [];
